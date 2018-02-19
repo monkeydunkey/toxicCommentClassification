@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import string, re
-from matplotlib import pyplot as plt
 from sklearn.model_selection import train_test_split
 
 from sklearn.naive_bayes import MultinomialNB
@@ -12,12 +11,10 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.ensemble import ExtraTreesClassifier
 from sklearn.metrics import log_loss, roc_auc_score
 from datetime import datetime
-from sklearn.preprocessing import MinMaxScaler
 from scipy import sparse
 ## Defines NB SVM model
 class nbsvm():
     def pr(self, y_i, y, data):
-        #print y.shape, type(y), y_i, y==y_i, type(data), data[y==y_i]
         p = data[y==y_i].sum(0)
         return (p+1) / ((y==y_i).sum()+1)
 
@@ -60,16 +57,15 @@ vec = TfidfVectorizer(ngram_range=(1,2), min_df=3, max_df=0.9, stop_words='engli
 trn_term_doc = vec.fit_transform(trainData['ProcessedText'])
 test_term_doc = vec.transform(testData['ProcessedText'].fillna("unknown"))
 
-print type(trn_term_doc)
 colsCopy = ['wordCount', 'shouting words', 'percentShout']
-scaler = MinMaxScaler()
-trn_term_doc = sparse.csr_matrix(sparse.hstack([trn_term_doc, scaler.fit_transform(trainData[colsCopy].values)]))
-test_term_doc = sparse.csr_matrix(sparse.hstack([test_term_doc, scaler.fit_transform(testData[colsCopy].values)]))
+#for col in colsCopy:
+    #trn_term_doc = sparse.hstack((trn_term_doc,trainData[col].values[:,None])).A
+    #test_term_doc = sparse.hstack((test_term_doc,testData[col].values[:,None])).A
 
 #trn_term_doc = sparse.csr_matrix(trn_term_doc.values)
 #test_term_doc = sparse.csr_matrix(test_term_doc.values)
 
-models = [('nbsvm', nbsvm())]
+models = [('nbsvm', nbsvm())]#, ('extraTreeClassifier', ExtraTreesClassifier(n_jobs=-1, random_state=3))]
 for mdlName, mdl in models:
     preds = np.zeros((test_term_doc.shape[0], len(label_cols)))
     print('Model Name', mdlName)
