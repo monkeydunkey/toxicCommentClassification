@@ -12,7 +12,7 @@ from sklearn.metrics import roc_auc_score
 from keras.callbacks import Callback
 from sklearn.model_selection import train_test_split
 
-from utils import tokenizerTfIdf
+from utils import tokenizerTfIdf, loadDataSets, loadEmbedding
 
 def schedule(ind):
     a = [0.002,0.003, 0.000]
@@ -34,28 +34,22 @@ class RocAucEvaluation(Callback):
             score = roc_auc_score(self.y_val, y_pred)
             print("\n ROC-AUC - epoch: {:d} - score: {:.6f}".format(epoch, score))
 
-gloveDir = 'glove.6B'
-#EMBEDDING_FILE=f'{path}glove-vectors/glove.6B.100d.txt'
-EMBEDDING_FILE= gloveDir + '/glove.6B.300d.txt'
-
-TRAIN_DATA_FILE='train.csv'
-TEST_DATA_FILE='test.csv'
-
 embed_size = 300 # how big is each word vector
 max_features = 20000 # how many unique words to use (i.e num rows in embedding vector)
 maxlen = 100 # max number of words in a comment to use
 
-train = pd.read_csv(TRAIN_DATA_FILE)
-test = pd.read_csv(TEST_DATA_FILE)
-
+train, test, combined = loadDataSets()
 print "Data Loaded"
-list_sentences_train = train["comment_text"].fillna("_na_").values
+
+
+list_sentences_train = combined.loc[:train.shape[0] - 1]["ProcessedText"].fillna("_na_").values
+print "train sentence list", len(list_sentences_train), "train shape", train.shape[0]
 list_classes = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
 y = train[list_classes].values
-list_sentences_test = test["comment_text"].fillna("_na_").values
+list_sentences_test = combined.loc[train.shape[0]:]["ProcessedText"].fillna("_na_").values
 
-#tokenizer = Tokenizer(num_words=max_features)
-tokenizer = tokenizerTfIdf(ngram_range = (1,2), max_features = max_features)
+tokenizer = Tokenizer(num_words=max_features)
+#tokenizer = tokenizerTfIdf(ngram_range = (1,2), max_features = max_features)
 tokenizer.fit_on_texts(list(list_sentences_train))
 print "tokensFitted"
 list_tokenized_train = tokenizer.texts_to_sequences(list_sentences_train)
@@ -63,10 +57,7 @@ list_tokenized_test = tokenizer.texts_to_sequences(list_sentences_test)
 X_t = pad_sequences(list_tokenized_train, maxlen=maxlen)
 X_te = pad_sequences(list_tokenized_test, maxlen=maxlen)
 
-embeddings_index = dict(get_coefs(*o.strip().split()) for o in open(EMBEDDING_FILE))
-
-all_embs = np.stack(embeddings_index.values())
-emb_mean,emb_std = all_embs.mean(), all_embs.std()
+embedding_matrix = loadEmbedding('glove', max_features, embed_size, tokenizer)
 print "embeddings loaded"
 
 word_index = tokenizer.word_index

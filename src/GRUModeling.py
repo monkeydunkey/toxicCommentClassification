@@ -12,15 +12,13 @@ from sklearn.metrics import roc_auc_score
 from keras.callbacks import Callback
 from sklearn.model_selection import train_test_split
 import os
-
-from utils import tokenizerTfIdf
+from utils import tokenizerTfIdf, loadDataSets, loadEmbedding
 
 def schedule(ind):
     a = [0.002,0.003, 0.000]
     return a[ind]
 
-def get_coefs(word,*arr):
-  return word, np.asarray(arr, dtype='float32')
+
 
 class RocAucEvaluation(Callback):
     def __init__(self, validation_data=(), interval=1):
@@ -35,21 +33,11 @@ class RocAucEvaluation(Callback):
             score = roc_auc_score(self.y_val, y_pred)
             print("\n ROC-AUC - epoch: {:d} - score: {:.6f}".format(epoch, score))
 
-gloveDir = '../glove.6B'
-DATA_DIR = '../datasets'
-#EMBEDDING_FILE=f'{path}glove-vectors/glove.6B.100d.txt'
-EMBEDDING_FILE= gloveDir + '/glove.6B.300d.txt'
-
-TRAIN_DATA_FILE= os.path.join(DATA_DIR, 'train.csv')
-TEST_DATA_FILE= os.path.join(DATA_DIR, 'test.csv')
-COMBINED_DATA_FILE = os.path.join(DATA_DIR, 'combinedProcessedDataSet.csv')
 embed_size = 300 # how big is each word vector
 max_features = 20000 # how many unique words to use (i.e num rows in embedding vector)
 maxlen = 100 # max number of words in a comment to use
 
-train = pd.read_csv(TRAIN_DATA_FILE)
-test = pd.read_csv(TEST_DATA_FILE)
-combined = pd.read_csv(COMBINED_DATA_FILE)
+train, test, combined = loadDataSets()
 print "Data Loaded"
 
 
@@ -68,19 +56,9 @@ list_tokenized_test = tokenizer.texts_to_sequences(list_sentences_test)
 X_t = pad_sequences(list_tokenized_train, maxlen=maxlen)
 X_te = pad_sequences(list_tokenized_test, maxlen=maxlen)
 
-embeddings_index = dict(get_coefs(*o.strip().split()) for o in open(EMBEDDING_FILE))
 
-all_embs = np.stack(embeddings_index.values())
-emb_mean,emb_std = all_embs.mean(), all_embs.std()
+embedding_matrix = loadEmbedding('glove', max_features, embed_size, tokenizer)
 print "embeddings loaded"
-
-word_index = tokenizer.word_index
-nb_words = min(max_features, len(word_index))
-embedding_matrix = np.random.normal(emb_mean, emb_std, (nb_words, embed_size))
-for word, i in word_index.items():
-    if i >= max_features: continue
-    embedding_vector = embeddings_index.get(word)
-    if embedding_vector is not None: embedding_matrix[i] = embedding_vector
 
 print "Building the model"
 inp = Input(shape=(maxlen,))
