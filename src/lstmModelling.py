@@ -11,7 +11,6 @@ import logging
 from sklearn.metrics import roc_auc_score
 from keras.callbacks import Callback
 from sklearn.model_selection import train_test_split
-import os
 
 from utils import tokenizerTfIdf
 
@@ -35,32 +34,28 @@ class RocAucEvaluation(Callback):
             score = roc_auc_score(self.y_val, y_pred)
             print("\n ROC-AUC - epoch: {:d} - score: {:.6f}".format(epoch, score))
 
-gloveDir = '../glove.6B'
-DATA_DIR = '../datasets'
+gloveDir = 'glove.6B'
 #EMBEDDING_FILE=f'{path}glove-vectors/glove.6B.100d.txt'
 EMBEDDING_FILE= gloveDir + '/glove.6B.300d.txt'
 
-TRAIN_DATA_FILE= os.path.join(DATA_DIR, 'train.csv')
-TEST_DATA_FILE= os.path.join(DATA_DIR, 'test.csv')
-COMBINED_DATA_FILE = os.path.join(DATA_DIR, 'combinedProcessedDataSet.csv')
+TRAIN_DATA_FILE='train.csv'
+TEST_DATA_FILE='test.csv'
+
 embed_size = 300 # how big is each word vector
 max_features = 20000 # how many unique words to use (i.e num rows in embedding vector)
 maxlen = 100 # max number of words in a comment to use
 
 train = pd.read_csv(TRAIN_DATA_FILE)
 test = pd.read_csv(TEST_DATA_FILE)
-combined = pd.read_csv(COMBINED_DATA_FILE)
+
 print "Data Loaded"
-
-
-list_sentences_train = combined.loc[:train.shape[0] - 1]["ProcessedText"].fillna("_na_").values
-print "train sentence list", len(list_sentences_train), "train shape", train.shape[0]
+list_sentences_train = train["comment_text"].fillna("_na_").values
 list_classes = ["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]
 y = train[list_classes].values
-list_sentences_test = combined.loc[train.shape[0]:]["ProcessedText"].fillna("_na_").values
+list_sentences_test = test["comment_text"].fillna("_na_").values
 
-tokenizer = Tokenizer(num_words=max_features)
-#tokenizer = tokenizerTfIdf(ngram_range = (1,2), max_features = max_features)
+#tokenizer = Tokenizer(num_words=max_features)
+tokenizer = tokenizerTfIdf(ngram_range = (1,2), max_features = max_features)
 tokenizer.fit_on_texts(list(list_sentences_train))
 print "tokensFitted"
 list_tokenized_train = tokenizer.texts_to_sequences(list_sentences_train)
@@ -85,7 +80,7 @@ for word, i in word_index.items():
 print "Building the model"
 inp = Input(shape=(maxlen,))
 x = Embedding(max_features, embed_size, weights=[embedding_matrix], trainable=True)(inp)
-x = Bidirectional(GRU(50, return_sequences=True,dropout=0.1, recurrent_dropout=0.1))(x)
+x = Bidirectional(LSTM(50, return_sequences=True,dropout=0.1, recurrent_dropout=0.1))(x)
 x = GlobalMaxPool1D()(x)
 x = BatchNormalization()(x)
 x = Dense(50, activation="relu")(x)
@@ -106,10 +101,10 @@ lr = callbacks.LearningRateScheduler(schedule)
 
 ra_val = RocAucEvaluation(validation_data=(X_val, y_val), interval=1)
 print "Starting model training"
-model.fit(X_train, y_train, batch_size=64, epochs=5, validation_data=(X_val, y_val), callbacks=[lr, ra_val])
+model.fit(X_train, y_train, batch_size=64, epochs=3, validation_data=(X_val, y_val), callbacks=[lr, ra_val])
 
 y_test = model.predict([X_te], batch_size=1024, verbose=1)
 timeStr = str(datetime.now().date()).replace('-', '_') + ' ' + str(datetime.now().time()).replace(':', '_').replace('.', '_')
 sample_submission = pd.DataFrame(data = {"id": test.id.values})
 sample_submission[list_classes] = y_test
-sample_submission.to_csv('GRU-submission'+ timeStr +'.csv', index=False)
+sample_submission.to_csv('LSTM-submission'+ timeStr +'.csv', index=False)
