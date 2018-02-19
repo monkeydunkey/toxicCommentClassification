@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import string, re
-from matplotlib import pyplot as plt
 from sklearn.model_selection import train_test_split
 
 from sklearn.naive_bayes import MultinomialNB
@@ -54,19 +53,19 @@ del test_df
 
 vec = TfidfVectorizer(ngram_range=(1,2), min_df=3, max_df=0.9, stop_words='english',
                       strip_accents='unicode', use_idf=1,
-                      smooth_idf=1, sublinear_tf=1, max_features = 100000)
-trn_term_doc = pd.DataFrame(vec.fit_transform(trainData['ProcessedText']).todense())
-test_term_doc = pd.DataFrame(vec.transform(testData['ProcessedText'].fillna("unknown")).todense())
+                      smooth_idf=1, sublinear_tf=1)
+trn_term_doc = vec.fit_transform(trainData['ProcessedText'])
+test_term_doc = vec.transform(testData['ProcessedText'].fillna("unknown"))
 
 colsCopy = ['wordCount', 'shouting words', 'percentShout']
-for col in colsCopy:
-    trn_term_doc[col] = trainData[col].values
-    test_term_doc[col] = testData[col].values
+#for col in colsCopy:
+    #trn_term_doc = sparse.hstack((trn_term_doc,trainData[col].values[:,None])).A
+    #test_term_doc = sparse.hstack((test_term_doc,testData[col].values[:,None])).A
 
-trn_term_doc = sparse.csr_matrix(trn_term_doc.values)
-test_term_doc = sparse.csr_matrix(test_term_doc.values)
+#trn_term_doc = sparse.csr_matrix(trn_term_doc.values)
+#test_term_doc = sparse.csr_matrix(test_term_doc.values)
 
-models = [('nbsvm', nbsvm()), ('extraTreeClassifier', ExtraTreesClassifier(n_jobs=-1, random_state=3))]
+models = [('nbsvm', nbsvm())]#, ('extraTreeClassifier', ExtraTreesClassifier(n_jobs=-1, random_state=3))]
 for mdlName, mdl in models:
     preds = np.zeros((test_term_doc.shape[0], len(label_cols)))
     print('Model Name', mdlName)
