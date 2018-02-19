@@ -1,0 +1,10 @@
+matplotlib
+numpy
+pandas
+Pillow
+protobuf
+scikit-learn
+scipy
+tensorflow-gpu
+Keras
+nltk
