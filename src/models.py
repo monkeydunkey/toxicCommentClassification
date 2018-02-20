@@ -11,6 +11,7 @@ from keras.optimizers import SGD, Adam, Adagrad, Adadelta
 import math
 import tensorflow as tf
 
+
 '''
 class KMaxPooling(Layer):
     """
