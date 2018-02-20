@@ -41,20 +41,21 @@ def loadDataSets():
 def get_coefs(word,*arr):
   return word, np.asarray(arr, dtype='float32')
 
-def loadGlove(EMBEDFILE):
-    embeddings_index = dict(get_coefs(*o.strip().split()) for o in open(EMBEDFILE) )
+def get_emb_vectors(embeddings_index):
     all_embs = np.stack(embeddings_index.values())
     emb_mean,emb_std = all_embs.mean(), all_embs.std()
     return embeddings_index, emb_mean, emb_std
+
+def loadGlove(EMBEDFILE):
+    embeddings_index = dict(get_coefs(*o.strip().split()) for o in open(EMBEDFILE) )
+    return get_emb_vectors(embeddings_index)
 
 def loadFastText(EMBEDFILE):
     with open(EMBEDFILE) as f:
         next(f)
         embeddings_index = dict(get_coefs(*o.strip().split()) for o in f)
     del embeddings_index['-0.1719']
-    all_embs = np.stack(embeddings_index.values())
-    emb_mean,emb_std = all_embs.mean(), all_embs.std()
-    return embeddings_index, emb_mean, emb_std
+    return get_emb_vectors(embeddings_index)
 
 def loadEmbedding(type, max_features, embed_size, tokenizer):
     EMBEDDING_DIR = embedding_dir[type]
