@@ -85,10 +85,10 @@ lr = callbacks.LearningRateScheduler(schedule)
 
 ra_val = RocAucEvaluation(validation_data=(X_val, y_val), interval=1)
 print "Starting model training"
-model.fit(X_train, y_train, batch_size=64, epochs=3, validation_data=(X_val, y_val), callbacks=[lr, ra_val])
+model.fit(X_train, y_train, batch_size=64, epochs=1, validation_data=(X_val, y_val), callbacks=[lr, ra_val])
 
 y_test = model.predict([X_te], batch_size=1024, verbose=1)
 timeStr = str(datetime.now().date()).replace('-', '_') + ' ' + str(datetime.now().time()).replace(':', '_').replace('.', '_')
 sample_submission = pd.DataFrame(data = {"id": test.id.values})
-sample_submission = pd.concat([submid, pd.DataFrame(y_test, columns = list_classes)], axis=1)
+sample_submission = pd.concat([sample_submission, pd.DataFrame(y_test, columns = list_classes)], axis=1)
 sample_submission.to_csv('LSTM-submission'+ timeStr +'.csv', index=False)
