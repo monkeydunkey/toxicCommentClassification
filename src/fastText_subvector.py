@@ -82,7 +82,7 @@ def df_to_data(df):
 
     return x
 
-def data_generator(df, batch_size):
+def data_generator(df, batch_size, trainTest = True):
     """
     Given a raw dataframe, generates infinite batches of FastText vectors.
     """
@@ -98,15 +98,20 @@ def data_generator(df, batch_size):
 
             if batch_x is None:
                 batch_x = np.zeros((batch_size, window_length, n_features), dtype='float32')
-                batch_y = np.zeros((batch_size, len(classes)), dtype='float32')
+                if trainTest:
+                    batch_y = np.zeros((batch_size, len(classes)), dtype='float32')
 
             batch_x[batch_i] = text_to_vector(comment)
-            batch_y[batch_i] = row[classes].values
+            if trainTest:
+                batch_y[batch_i] = row[classes].values
             batch_i += 1
 
             if batch_i == batch_size:
                 # Ready to yield the batch
-                yield batch_x, batch_y
+                if trainTest:
+                    yield batch_x, batch_y
+                else:
+                    yield batch_x
                 batch_x = None
                 batch_y = None
                 batch_i = 0
@@ -141,9 +146,9 @@ y_val = df_val[classes].values
 
 batch_size = 128
 training_steps_per_epoch = int(round(len(df_train) / batch_size))
-training_generator = data_generator(df_train, batch_size)
+training_generator = data_generator(df_train, batch_size, True)
 test_batch_size = 1024
-test_generator = data_generator(test, test_batch_size)
+test_generator = data_generator(test, test_batch_size, False)
 test_total_steps = int(round(len(df_train) / batch_size))
 
 
