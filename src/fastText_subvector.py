@@ -39,7 +39,7 @@ def normalize(s):
     # Isolate punctuation
     s = re.sub(r'([\'\"\.\(\)\!\?\-\\\/\,])', r' \1 ', s)
     # Remove some special characters
-    s = re.sub(r'([\;\:\|•«\n])', ' ', s)
+    s = re.sub(r'([\;\:\|\n])', ' ', s)
     # Replace numbers and symbols with language
     s = s.replace('&', ' and ')
     s = s.replace('@', ' at ')
@@ -115,8 +115,8 @@ def data_generator(df, batch_size):
 PATH_TO_MODEL = '../../wiki.en.bin'
 
 print('\nLoading data')
-train = pd.read_csv('../input/train.csv')
-test = pd.read_csv('../input/test.csv')
+train = pd.read_csv('../datasets/train.csv')
+test = pd.read_csv('../datasets/test.csv')
 train['comment_text'] = train['comment_text'].fillna('_empty_')
 test['comment_text'] = test['comment_text'].fillna('_empty_')
 
@@ -129,7 +129,7 @@ ft_model = load_model(PATH_TO_MODEL)
 n_features = ft_model.get_dimension()
 
 # Split the dataset:
-split_index = round(len(train) * 0.9)
+split_index = int(round(len(train) * 0.9))
 shuffled_train = train.sample(frac=1)
 df_train = shuffled_train.iloc[:split_index]
 df_val = shuffled_train.iloc[split_index:]
@@ -140,17 +140,17 @@ y_val = df_val[classes].values
 
 
 batch_size = 128
-training_steps_per_epoch = round(len(df_train) / batch_size)
+training_steps_per_epoch = int(round(len(df_train) / batch_size))
 training_generator = data_generator(df_train, batch_size)
 test_batch_size = 1024
 test_generator = data_generator(test, test_batch_size)
-test_total_steps = round(len(df_train) / batch_size)
+test_total_steps = int(round(len(df_train) / batch_size))
 
 
 # Ready to start training:
 print "Building the model"
 inp = Input(shape=(window_length, n_features))
-x = Bidirectional(LSTM(50, return_sequences=True,dropout=0.1, recurrent_dropout=0.1))(x)
+x = Bidirectional(LSTM(50, return_sequences=True,dropout=0.1, recurrent_dropout=0.1))(inp)
 x = GlobalMaxPool1D()(x)
 x = BatchNormalization()(x)
 x = Dense(50, activation="relu")(x)
@@ -173,7 +173,6 @@ model.fit_generator(
     training_generator,
     steps_per_epoch=training_steps_per_epoch,
     epochs = 1,
-    batch_size=batch_size,
     validation_data=(x_val, y_val),
     callbacks=[ra_val]
 )
