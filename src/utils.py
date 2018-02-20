@@ -3,7 +3,8 @@ import os
 import pandas as pd
 import numpy as np
 embedding_dir = {
-    'glove': '../glove.6B'
+    'glove': '../glove.6B',
+    'fasttext': '../fasttext'
 }
 
 class tokenizerTfIdf(object):
@@ -40,14 +41,28 @@ def loadDataSets():
 def get_coefs(word,*arr):
   return word, np.asarray(arr, dtype='float32')
 
+def loadGlove(EMBEDFILE):
+    embeddings_index = dict(get_coefs(*o.strip().split()) for o in open(EMBEDFILE) )
+    all_embs = np.stack(embeddings_index.values())
+    emb_mean,emb_std = all_embs.mean(), all_embs.std()
+    return embeddings_index, emb_mean, emb_std
+
+def loadFastText(EMBEDFILE):
+    with open(EMBEDFILE) as f:
+        next(f)
+        embeddings_index = dict(get_coefs(*o.strip().split()) for o in f)
+    del embeddings_index['-0.1719']
+    all_embs = np.stack(embeddings_index.values())
+    emb_mean,emb_std = all_embs.mean(), all_embs.std()
+    return embeddings_index, emb_mean, emb_std
+
 def loadEmbedding(type, max_features, embed_size, tokenizer):
     EMBEDDING_DIR = embedding_dir[type]
     EMBEDDING_FILE = os.path.join(EMBEDDING_DIR, str(embed_size)+'d.txt')
-    embeddings_index = dict(get_coefs(*o.strip().split()) for o in open(EMBEDDING_FILE))
-
-    all_embs = np.stack(embeddings_index.values())
-    emb_mean,emb_std = all_embs.mean(), all_embs.std()
-
+    if type == 'glove':
+        embeddings_index, emb_mean, emb_std = loadGlove(EMBEDDING_FILE)
+    elif type == 'fasttext':
+        embeddings_index, emb_mean, emb_std = loadFastText(EMBEDDING_FILE)
 
     word_index = tokenizer.word_index
     nb_words = min(max_features, len(word_index))

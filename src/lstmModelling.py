@@ -60,13 +60,6 @@ X_te = pad_sequences(list_tokenized_test, maxlen=maxlen)
 embedding_matrix = loadEmbedding('glove', max_features, embed_size, tokenizer)
 print "embeddings loaded"
 
-word_index = tokenizer.word_index
-nb_words = min(max_features, len(word_index))
-embedding_matrix = np.random.normal(emb_mean, emb_std, (nb_words, embed_size))
-for word, i in word_index.items():
-    if i >= max_features: continue
-    embedding_vector = embeddings_index.get(word)
-    if embedding_vector is not None: embedding_matrix[i] = embedding_vector
 
 print "Building the model"
 inp = Input(shape=(maxlen,))
