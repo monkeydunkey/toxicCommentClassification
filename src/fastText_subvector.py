@@ -1,8 +1,19 @@
-import re
-import numpy as np
-import pandas as pd
-from fastText import load_model
+import sys, os, re, csv, codecs, numpy as np, pandas as pd
+from datetime import datetime
+from keras.preprocessing.text import Tokenizer
+from keras.preprocessing.sequence import pad_sequences
+from keras.layers import Dense, Input, LSTM, GRU, Embedding, Dropout, Activation, BatchNormalization
+from keras.layers import Bidirectional, GlobalMaxPool1D
+from keras.models import Model
+from keras import initializers, regularizers, constraints, optimizers, layers, callbacks
 
+import logging
+from sklearn.metrics import roc_auc_score
+from keras.callbacks import Callback
+from sklearn.model_selection import train_test_split
+import os
+from utils import tokenizerTfIdf, loadDataSets, loadEmbedding
+from fastText import load_model
 window_length = 200 # The amount of words we look at per example. Experiment with this.
 
 class RocAucEvaluation(Callback):
@@ -71,32 +82,6 @@ def df_to_data(df):
 
     return x
 
-PATH_TO_MODEL = '../../wiki.en.bin'
-
-print('\nLoading data')
-train = pd.read_csv('../input/train.csv')
-test = pd.read_csv('../input/test.csv')
-train['comment_text'] = train['comment_text'].fillna('_empty_')
-test['comment_text'] = test['comment_text'].fillna('_empty_')
-
-classes = [
-    'toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate'
-]
-
-print('\nLoading FT model')
-ft_model = load_model(PATH_TO_MODEL)
-n_features = ft_model.get_dimension()
-
-# Split the dataset:
-split_index = round(len(train) * 0.9)
-shuffled_train = train.sample(frac=1)
-df_train = shuffled_train.iloc[:split_index]
-df_val = shuffled_train.iloc[split_index:]
-
-# Convert validation set to fixed array
-x_val = df_to_data(df_val)
-y_val = df_val[classes].values
-
 def data_generator(df, batch_size):
     """
     Given a raw dataframe, generates infinite batches of FastText vectors.
@@ -126,16 +111,46 @@ def data_generator(df, batch_size):
                 batch_y = None
                 batch_i = 0
 
-model = build_model()  # TODO: Implement
+
+PATH_TO_MODEL = '../../wiki.en.bin'
+
+print('\nLoading data')
+train = pd.read_csv('../input/train.csv')
+test = pd.read_csv('../input/test.csv')
+train['comment_text'] = train['comment_text'].fillna('_empty_')
+test['comment_text'] = test['comment_text'].fillna('_empty_')
+
+classes = [
+    'toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate'
+]
+
+print('\nLoading FT model')
+ft_model = load_model(PATH_TO_MODEL)
+n_features = ft_model.get_dimension()
+
+# Split the dataset:
+split_index = round(len(train) * 0.9)
+shuffled_train = train.sample(frac=1)
+df_train = shuffled_train.iloc[:split_index]
+df_val = shuffled_train.iloc[split_index:]
+
+# Convert validation set to fixed array
+x_val = df_to_data(df_val)
+y_val = df_val[classes].values
+
 
 batch_size = 128
 training_steps_per_epoch = round(len(df_train) / batch_size)
 training_generator = data_generator(df_train, batch_size)
+test_batch_size = 1024
+test_generator = data_generator(test, test_batch_size)
+test_total_steps = round(len(df_train) / batch_size)
+
 
 # Ready to start training:
 print "Building the model"
-inp = Input(shape=(maxlen,))
-x = Bidirectional(GRU(50, return_sequences=True,dropout=0.1, recurrent_dropout=0.1))(x)
+inp = Input(shape=(window_length, n_features))
+x = Bidirectional(LSTM(50, return_sequences=True,dropout=0.1, recurrent_dropout=0.1))(x)
 x = GlobalMaxPool1D()(x)
 x = BatchNormalization()(x)
 x = Dense(50, activation="relu")(x)
@@ -149,21 +164,22 @@ import keras.backend as K
 def loss(y_true, y_pred):
      return K.binary_crossentropy(y_true, y_pred)
 
-model.compile(loss=loss, optimizer='nadam', metrics=['accuracy'])
+opt = optimizers.Nadam(lr=0.001)
+model.compile(loss=loss, optimizer=opt, metrics=['accuracy'])
 
-ra_val = RocAucEvaluation(validation_data=(X_val, y_val), interval=1)
+ra_val = RocAucEvaluation(validation_data=(x_val, y_val), interval=1)
 print "Starting model training"
 model.fit_generator(
     training_generator,
-    epochs=5,
-    batch_size=64,
+    steps_per_epoch=training_steps_per_epoch,
+    epochs = 1,
+    batch_size=batch_size,
     validation_data=(x_val, y_val),
     callbacks=[ra_val]
 )
 
-
-y_test = model.predict([X_te], batch_size=1024, verbose=1)
+y_test = model.predict_generator(test_generator, steps = test_total_steps)
 timeStr = str(datetime.now().date()).replace('-', '_') + ' ' + str(datetime.now().time()).replace(':', '_').replace('.', '_')
 sample_submission = pd.DataFrame(data = {"id": test.id.values})
 sample_submission = pd.concat([sample_submission, pd.DataFrame(y_test, columns = list_classes)], axis=1)
-sample_submission.to_csv('GRU-submission'+ timeStr +'.csv', index=False)
+sample_submission.to_csv('fastText-subvector-submission'+ timeStr +'.csv', index=False)
