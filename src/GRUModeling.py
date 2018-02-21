@@ -3,43 +3,65 @@ from datetime import datetime
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.layers import Dense, Input, LSTM, GRU, Embedding, Dropout, Activation, BatchNormalization
-from keras.layers import Bidirectional, GlobalMaxPool1D
+from keras.layers import Bidirectional, GlobalMaxPool1D, GlobalAveragePooling1D
 from keras.models import Model
+from keras.layers.merge import concatenate
 from keras import initializers, regularizers, constraints, optimizers, layers, callbacks
 
 import logging
 from sklearn.metrics import roc_auc_score
-from keras.callbacks import Callback
+from keras.callbacks import Callback, EarlyStopping
 from sklearn.model_selection import train_test_split
 import os
-from utils import tokenizerTfIdf, loadDataSets, loadEmbedding
+from utils import tokenizerTfIdf, loadDataSets, loadEmbedding, setupModelRun
 
 def schedule(ind):
     a = [0.002,0.003, 0.001, 0.001, 0.001]
     return a[ind]
 
-
-
+#This is to save model output whenever we see an improvement in the model performance
 class RocAucEvaluation(Callback):
-    def __init__(self, validation_data=(), interval=1):
+    def __init__(self, modelDir, list_classes, test_data, validation_data=(),  interval=1):
         super(Callback, self).__init__()
-
         self.interval = interval
         self.X_val, self.y_val = validation_data
+        self.X_test = test_data
+        self.modelDir = modelDir
+        pd.DataFrame(self.X_val).to_csv(os.path.join(modelDir, 'validation_data_x.csv'), index=False)
+        pd.DataFrame(self.y_val).to_csv(os.path.join(modelDir, 'validation_data_y.csv'), index=False)
+        self.auc_history = []
+        self.best_AUC_Score = float("-inf")
+        self.list_classes = list_classes
 
     def on_epoch_end(self, epoch, logs={}):
         if epoch % self.interval == 0:
-            y_pred = self.model.predict(self.X_val, verbose=0)
+            y_pred = self.model.predict(self.X_val, verbose=1)
+            y_pred_test = self.model.predict(self.X_test, batch_size=1024, verbose=1)
             score = roc_auc_score(self.y_val, y_pred)
             print("\n ROC-AUC - epoch: {:d} - score: {:.6f}".format(epoch, score))
+
+            self.auc_history.append(score)
+
+            #Saving the model weights if the AUC score is the best observed till now
+            if self.best_AUC_Score < self.auc_history[-1] and len(self.auc_history) > 1:
+                dateTag = str(datetime.now().replace(second=0, microsecond=0)).replace(' ', '_').replace('-', '_').replace(':', '_')
+                filepath_val = os.path.join(modelDir, 'predictions_val_' + str(round(self.auc_history[-1] * 100, 5)).replace('.', '_') + '.csv')
+                filepath_test = os.path.join(modelDir, 'predictions_test_' + str(round(self.auc_history[-1] * 100, 5)).replace('.', '_') + '.csv')
+                pd.DataFrame(y_pred, columns = self.list_classes).to_csv(filepath_val)
+                pd.DataFrame(y_pred_test, columns = self.list_classes).to_csv(filepath_test)
+            self.best_AUC_Score = self.auc_history[-1]
+
+        return
 
 embed_size = 300 # how big is each word vector
 max_features = 20000 # how many unique words to use (i.e num rows in embedding vector)
 maxlen = 100 # max number of words in a comment to use
 
+print "setting up directory"
+runDir = setupModelRun('GRU')
+
 train, test, combined = loadDataSets()
 print "Data Loaded"
-
 
 list_sentences_train = combined.loc[:train.shape[0] - 1]["ProcessedText"].fillna("_na_").values
 print "train sentence list", len(list_sentences_train), "train shape", train.shape[0]
@@ -63,9 +85,11 @@ print "embeddings loaded"
 print "Building the model"
 inp = Input(shape=(maxlen,))
 x = Embedding(max_features, embed_size, weights=[embedding_matrix], trainable=True)(inp)
-x = Bidirectional(GRU(50, return_sequences=True,dropout=0.1, recurrent_dropout=0.1))(x)
-x = GlobalMaxPool1D()(x)
-x = BatchNormalization()(x)
+x = Bidirectional(GRU(64, return_sequences=True,dropout=0.1, recurrent_dropout=0.2))(x)
+x_1 = GlobalMaxPool1D()(x)
+x_2 = GlobalAveragePooling1D()(x)
+x = concatenate([x_1, x_2])
+#x = BatchNormalization()(x)
 x = Dense(50, activation="relu")(x)
 #x = BatchNormalization()(x)
 x = Dropout(0.1)(x)
@@ -76,15 +100,16 @@ import keras.backend as K
 def loss(y_true, y_pred):
      return K.binary_crossentropy(y_true, y_pred)
 
-model.compile(loss=loss, optimizer='nadam', metrics=['accuracy'])
+opt = optimizers.Nadam(lr=0.001)
+model.compile(loss=loss, optimizer=opt, metrics=['accuracy'])
 
+earStop = EarlyStopping(monitor='val_loss', min_delta=1e-2, patience=1)
 
-lr = callbacks.LearningRateScheduler(schedule)
 [X_train, X_val, y_train, y_val] = train_test_split(X_t, y, train_size=0.95)
 
-ra_val = RocAucEvaluation(validation_data=(X_val, y_val), interval=1)
+ra_val = RocAucEvaluation(runDir, list_classes, [X_te], validation_data=(X_val, y_val), interval=1)
 print "Starting model training"
-model.fit(X_train, y_train, batch_size=64, epochs=5, validation_data=(X_val, y_val), callbacks=[lr, ra_val])
+model.fit(X_train, y_train, batch_size=64, epochs=10,  validation_data=(X_val, y_val), callbacks=[earStop, ra_val])
 
 y_test = model.predict([X_te], batch_size=1024, verbose=1)
 timeStr = str(datetime.now().date()).replace('-', '_') + ' ' + str(datetime.now().time()).replace(':', '_').replace('.', '_')

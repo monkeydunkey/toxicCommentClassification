@@ -2,6 +2,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import os
 import pandas as pd
 import numpy as np
+from datetime import datetime
+
 embedding_dir = {
     'glove': '../glove.6B',
     'fasttext': '../fasttext'
@@ -33,6 +35,12 @@ def loadDatafile(fileName):
     DATA_DIR = '../datasets'
     return pd.read_csv(os.path.join(DATA_DIR, fileName))
 
+def setupModelRun(modelName):
+    timeStr = str(datetime.now().date()).replace('-', '_') + ' ' + str(datetime.now().time()).replace(':', '_').replace('.', '_')
+    dirName = modelName + '_' + timeStr
+    if not os.path.exists(dirName):
+        os.makedirs(dirName)
+    return dirName
 
 def loadDataSets():
     files = ['train.csv', 'test.csv', 'combinedProcessedDataSet.csv']
