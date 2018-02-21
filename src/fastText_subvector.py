@@ -176,14 +176,14 @@ ra_val = RocAucEvaluation(validation_data=(x_val, y_val), interval=1)
 print "Starting model training"
 model.fit_generator(
     training_generator,
-    steps_per_epoch=training_steps_per_epoch,
+    steps_per_epoch=3,
     epochs = 1,
     validation_data=(x_val, y_val),
     callbacks=[ra_val]
 )
 
-y_test = model.predict_generator(test_generator, steps = test_total_steps)
+y_test = model.predict_generator(test_generator, steps = test_total_steps, verbose = 1)
 timeStr = str(datetime.now().date()).replace('-', '_') + ' ' + str(datetime.now().time()).replace(':', '_').replace('.', '_')
 sample_submission = pd.DataFrame(data = {"id": test.id.values})
-sample_submission = pd.concat([sample_submission, pd.DataFrame(y_test, columns = list_classes)], axis=1)
+sample_submission = pd.concat([sample_submission, pd.DataFrame(y_test, columns = classes)], axis=1)
 sample_submission.to_csv('fastText-subvector-submission'+ timeStr +'.csv', index=False)
