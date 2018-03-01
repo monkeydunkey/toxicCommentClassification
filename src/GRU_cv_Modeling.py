@@ -57,7 +57,7 @@ class RocAucEvaluation(Callback):
 
 embed_size = 300 # how big is each word vector
 max_features = 30000 # how many unique words to use (i.e num rows in embedding vector)
-maxlen = 100 # max number of words in a comment to use
+maxlen = 200 # max number of words in a comment to use
 
 print "setting up directory"
 runDir = setupModelRun('GRU')
@@ -109,14 +109,32 @@ model.compile(loss=loss, optimizer='adam', metrics=['accuracy'])
 
 earStop = EarlyStopping(monitor='val_loss', min_delta=1e-5, patience=2)
 
-[X_train, X_val, y_train, y_val] = train_test_split(X_t, y, train_size=0.95)
+cv = 3
+randomSeed = 42
+batch_size = 32
+epoch = 3
+testBatchSize = 1024
+aucHistory = []
 
-ra_val = RocAucEvaluation(runDir, list_classes, [X_te], validation_data=(X_val, y_val), interval=1)
-print "Starting model training"
-model.fit(X_train, y_train, batch_size=32, epochs=2,  validation_data=(X_val, y_val), callbacks=[earStop, ra_val])
+predfull = np.zeros((test.shape[0], len(list_classes)))
 
-y_test = model.predict([X_te], batch_size=1024, verbose=1)
+for cv_ in xrange(cv):
+    print 'Cross Validation Round', cv_ 
+    [X_train, X_val, y_train, y_val] = train_test_split(X_t, y, train_size=0.95, random_state = randomSeed)
+    
+    ra_val = RocAucEvaluation(runDir, list_classes, [X_te], validation_data=(X_val, y_val), interval=1)
+    print "Starting model training"
+    model.fit(X_train, y_train, batch_size=batch_size, epochs=epoch,  validation_data=(X_val, y_val), callbacks=[earStop, ra_val])
+    aucHistory.extend(ra_val.auc_history)
+    y_test = model.predict([X_te], batch_size=testBatchSize, verbose=1)
+    predfull += y_test
+    print 'Average AUC Score on the validation set for cv round: ', cv_, ' is: ', np.array(ra_val.auc_history).mean()
+
+print 'Average AUC Score: ', np.array(aucHistory).mean()
+predfull /= cv
+
+
 timeStr = str(datetime.now().date()).replace('-', '_') + ' ' + str(datetime.now().time()).replace(':', '_').replace('.', '_')
 sample_submission = pd.DataFrame(data = {"id": test.id.values})
-sample_submission = pd.concat([sample_submission, pd.DataFrame(y_test, columns = list_classes)], axis=1)
+sample_submission = pd.concat([sample_submission, pd.DataFrame(predful, columns = list_classes)], axis=1)
 sample_submission.to_csv('GRU-submission'+ timeStr +'.csv', index=False)
