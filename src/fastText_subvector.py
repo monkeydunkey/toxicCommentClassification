@@ -176,8 +176,8 @@ ra_val = RocAucEvaluation(validation_data=(x_val, y_val), interval=1)
 print "Starting model training"
 model.fit_generator(
     training_generator,
-    steps_per_epoch=3,
-    epochs = 1,
+    steps_per_epoch=training_steps_per_epoch,
+    epochs = 3,
     validation_data=(x_val, y_val),
     callbacks=[ra_val]
 )

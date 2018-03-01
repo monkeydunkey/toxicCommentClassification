@@ -45,8 +45,8 @@ class RocAucEvaluation(Callback):
             #Saving the model weights if the AUC score is the best observed till now
             if self.best_AUC_Score < self.auc_history[-1] and len(self.auc_history) > 1:
                 dateTag = str(datetime.now().replace(second=0, microsecond=0)).replace(' ', '_').replace('-', '_').replace(':', '_')
-                filepath_val = os.path.join(modelDir, 'predictions_val_' + str(round(self.auc_history[-1] * 100, 5)).replace('.', '_') + '.csv')
-                filepath_test = os.path.join(modelDir, 'predictions_test_' + str(round(self.auc_history[-1] * 100, 5)).replace('.', '_') + '.csv')
+                filepath_val = os.path.join(self.modelDir, 'predictions_val_' + str(round(self.auc_history[-1] * 100, 5)).replace('.', '_') + '.csv')
+                filepath_test = os.path.join(self.modelDir, 'predictions_test_' + str(round(self.auc_history[-1] * 100, 5)).replace('.', '_') + '.csv')
                 pd.DataFrame(y_pred, columns = self.list_classes).to_csv(filepath_val)
                 pd.DataFrame(y_pred_test, columns = self.list_classes).to_csv(filepath_test)
             self.best_AUC_Score = self.auc_history[-1]
@@ -79,20 +79,20 @@ X_t = pad_sequences(list_tokenized_train, maxlen=maxlen)
 X_te = pad_sequences(list_tokenized_test, maxlen=maxlen)
 
 
-embedding_matrix = loadEmbedding('glove', max_features, embed_size, tokenizer)
+embedding_matrix = loadEmbedding('fasttext', max_features, embed_size, tokenizer)
 print "embeddings loaded"
 
 print "Building the model"
 inp = Input(shape=(maxlen,))
 x = Embedding(max_features, embed_size, weights=[embedding_matrix], trainable=True)(inp)
-x = Bidirectional(GRU(64, return_sequences=True,dropout=0.1, recurrent_dropout=0.2))(x)
+x = Bidirectional(GRU(64, return_sequences=True,dropout=0.1, recurrent_dropout=0.3))(x)
 x_1 = GlobalMaxPool1D()(x)
 x_2 = GlobalAveragePooling1D()(x)
 x = concatenate([x_1, x_2])
+x = BatchNormalization()(x)
+#x = Dense(50, activation="relu")(x)
 #x = BatchNormalization()(x)
-x = Dense(50, activation="relu")(x)
-#x = BatchNormalization()(x)
-x = Dropout(0.1)(x)
+#x = Dropout(0.1)(x)
 x = Dense(6, activation="sigmoid")(x)
 model = Model(inputs=inp, outputs=x)
 
@@ -103,7 +103,7 @@ def loss(y_true, y_pred):
 opt = optimizers.Nadam(lr=0.001)
 model.compile(loss=loss, optimizer=opt, metrics=['accuracy'])
 
-earStop = EarlyStopping(monitor='val_loss', min_delta=1e-2, patience=1)
+earStop = EarlyStopping(monitor='val_loss', min_delta=1e-5, patience=2)
 
 [X_train, X_val, y_train, y_val] = train_test_split(X_t, y, train_size=0.95)
 
