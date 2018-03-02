@@ -13,22 +13,9 @@ from scipy.special import logit, expit
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import roc_auc_score
 from utils import tokenizerTfIdf, loadDataSets, loadEmbedding, setupModelRun
+from nbsvm import nbsvm
 # Functions
 def tokenize(s): return re_tok.sub(r' \1 ', s).split()
-
-
-def pr(y_i, y, x):
-    p = x[y==y_i].sum(0)
-    return (p+1) / ((y==y_i).sum()+1)
-
-
-def get_mdl(y,x, c0 = 4):
-    y = y.values
-    r = np.log(pr(1,y,x) / pr(0,y,x))
-    m = LogisticRegression(C= c0, dual=True)
-    x_nb = x.multiply(r)
-    return m.fit(x_nb, y), r
-
 
 def multi_roc_auc_score(y_true, y_pred):
     assert y_true.shape == y_pred.shape
@@ -98,9 +85,9 @@ char_vectorizer.fit(all1)
 xtrain2 = char_vectorizer.transform(train[COMMENT])
 xtest2 = char_vectorizer.transform(test[COMMENT])
 
-print 'Vectorizer fit completed'
-nfolds = 5
-xseed = 29
+print 'Vectorizer fit'
+nfolds = 3
+seed = 29
 cval = 4
 
 # data setup
@@ -109,15 +96,15 @@ xtest = hstack([xtest1,xtest2], format='csr')
 ytrain = np.array(train[label_cols].copy())
 
 # stratified split
-skf = StratifiedKFold(n_splits= nfolds, random_state= xseed)
+skf = StratifiedKFold(n_splits=nfolds, random_state=seed)
 
 # storage structures for prval / prfull
-predval = np.zeros((xtrain.shape[0], len(label_cols)))
-predfull = np.zeros((xtest.shape[0], len(label_cols)))
+predVal = np.zeros((xtrain.shape[0], len(label_cols)))
+predTest = np.zeros((xtest.shape[0], len(label_cols)))
 scoremat = np.zeros((nfolds,len(label_cols) ))
 score_vec = np.zeros((len(label_cols),1))
 
-
+mdl = nbsvm(dual = False, C = cval)
 for (lab_ind,lab) in enumerate(label_cols):
     y = train[lab].copy()
     print('label:' + str(lab_ind))
@@ -126,36 +113,38 @@ for (lab_ind,lab) in enumerate(label_cols):
         x0, x1 = xtrain[train_index], xtrain[test_index]
         y0, y1 = y[train_index], y[test_index]
         # fit model for prval
-        m,r = get_mdl(y0,x0, c0 = cval)
-        predval[test_index,lab_ind] = m.predict_proba(x1.multiply(r))[:,1]
-        scoremat[f,lab_ind] = roc_auc_score(y1,predval[test_index,lab_ind])
+        mdl.fit(x0, y0)
+        #m,r = get_mdl(y0,x0, c0 = cval)
+        predVal[test_index,lab_ind] = mdl.predict_proba(x1)[:,1]#m.predict_proba(x1.multiply(r))[:,1]
+        scoremat[f,lab_ind] = roc_auc_score(y1,predVal[test_index,lab_ind])
         # fit model full
-        m,r = get_mdl(y,xtrain, c0 = cval)
-        predfull[:,lab_ind] += m.predict_proba(xtest.multiply(r))[:,1]
+        #m,r = get_mdl(y,xtrain, c0 = cval)
+        mdl.fit(x0, y0)
+        predTest[:,lab_ind] += mdl.predict_proba(xtest)[:,1]
         print('fit:'+ str(lab) + ' fold:' + str(f) + ' score:%.6f' %(scoremat[f,lab_ind]))
 #    break
-predfull /= nfolds
+predTest /= nfolds
 
 
 score_vec = np.zeros((len(label_cols),1))
 for ii in range(len(label_cols)):
-    score_vec[ii] = roc_auc_score(ymat[:,ii], predval[:,ii])
+    score_vec[ii] = roc_auc_score(ytrain[:,ii], predVal[:,ii])
 print(score_vec.mean())
-print(multi_roc_auc_score(ymat, predval))
+#print(multi_roc_auc_score(ymat, predVal))
 
-# store prval
-prval = pd.DataFrame(predval)
-prval.columns = label_cols
+# store validation predictions
+prval = pd.DataFrame(predVal, columns = label_cols)
 prval['id'] = id_train
 prval.to_csv('prval_'+model_type+'x'+str(cval)+'f'+str(nfolds)+'_'+todate+'.csv', index= False)
 
-# store prfull
-prfull = pd.DataFrame(predfull)
-prfull.columns = label_cols
-prfull['id'] = id_test
-prfull.to_csv('prfull_'+model_type+'x'+str(cval)+'f'+str(nfolds)+'_'+todate+'.csv', index= False)
-
+# store the prediction on test set
+submission = pd.DataFrame(predTest, columns = label_cols)
+submission['id'] = id_test
+submission.to_csv('prfull_'+model_type+'x'+str(cval)+'f'+str(nfolds)+'_'+todate+'.csv', index= False)
+submission.to_csv('sub_' + model_type + 'x' + str(cval) + 'f' + str(nfolds) + '_' + todate + '.csv', index= False)
+'''
 # store submission
 sample_submission = pd.DataFrame(data = {"id": test.id.values})
-sample_submission = pd.concat([sample_submission, pd.DataFrame(prfull, columns = label_cols)], axis=1)
+sample_submission = pd.concat([sample_submission, pd.DataFrame(predTest, columns = label_cols)], axis=1)
 sample_submission.to_csv('sub_'+model_type+'x'+str(cval)+'f'+str(nfolds)+'_'+todate+'.csv', index= False)
+'''
