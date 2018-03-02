@@ -75,7 +75,8 @@ def loadEmbedding(type, max_features, embed_size, tokenizer):
 
     word_index = tokenizer.word_index
     nb_words = min(max_features, len(word_index))
-    embedding_matrix = np.random.normal(emb_mean, emb_std, (nb_words, embed_size))
+    #embedding_matrix = np.random.normal(emb_mean, emb_std, (nb_words, embed_size))
+    embedding_matrix = np.zeros((nb_words, embed_size))
     for word, i in word_index.items():
         if i >= max_features: continue
         embedding_vector = embeddings_index.get(word)

@@ -104,15 +104,15 @@ import keras.backend as K
 def loss(y_true, y_pred):
      return K.binary_crossentropy(y_true, y_pred)
 
-opt = optimizers.Nadam(lr=0.001)
+#opt = optimizers.Nadam(lr=0.001)
 model.compile(loss=loss, optimizer='adam', metrics=['accuracy'])
 
-earStop = EarlyStopping(monitor='val_loss', min_delta=1e-5, patience=2)
+earStop = EarlyStopping(monitor='val_loss', min_delta=1e-5, patience=1)
 
 cv = 3
 randomSeed = 42
-batch_size = 32
-epoch = 3
+batch_size = 64
+epoch = 2
 testBatchSize = 1024
 aucHistory = []
 
@@ -129,6 +129,8 @@ for cv_ in xrange(cv):
     y_test = model.predict([X_te], batch_size=testBatchSize, verbose=1)
     predfull += y_test
     print 'Average AUC Score on the validation set for cv round: ', cv_, ' is: ', np.array(ra_val.auc_history).mean()
+    print '-'*53
+    print '-'*53
 
 print 'Average AUC Score: ', np.array(aucHistory).mean()
 predfull /= cv
@@ -136,5 +138,5 @@ predfull /= cv
 
 timeStr = str(datetime.now().date()).replace('-', '_') + ' ' + str(datetime.now().time()).replace(':', '_').replace('.', '_')
 sample_submission = pd.DataFrame(data = {"id": test.id.values})
-sample_submission = pd.concat([sample_submission, pd.DataFrame(predful, columns = list_classes)], axis=1)
+sample_submission = pd.concat([sample_submission, pd.DataFrame(predfull, columns = list_classes)], axis=1)
 sample_submission.to_csv('GRU-submission'+ timeStr +'.csv', index=False)
