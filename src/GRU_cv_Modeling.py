@@ -57,7 +57,7 @@ class RocAucEvaluation(Callback):
 
 embed_size = 300 # how big is each word vector
 max_features = 30000 # how many unique words to use (i.e num rows in embedding vector)
-maxlen = 200 # max number of words in a comment to use
+maxlen = 100 # max number of words in a comment to use
 
 print "setting up directory"
 runDir = setupModelRun('GRU')
@@ -89,11 +89,12 @@ inp = Input(shape=(maxlen,))
 x = Embedding(max_features, embed_size, weights=[embedding_matrix], trainable=True)(inp)
 x = SpatialDropout1D(0.2)(x)
 #x = Bidirectional(GRU(64, return_sequences=True,dropout=0.1, recurrent_dropout=0.3))(x)
+#x = Bidirectional(GRU(80, return_sequences=True, recurrent_dropout=0.3))(x)
 x = Bidirectional(GRU(80, return_sequences=True))(x)
 x_1 = GlobalMaxPool1D()(x)
 x_2 = GlobalAveragePooling1D()(x)
 x = concatenate([x_1, x_2])
-x = BatchNormalization()(x)
+#x = BatchNormalization()(x)
 #x = Dense(50, activation="relu")(x)
 #x = BatchNormalization()(x)
 #x = Dropout(0.1)(x)
@@ -109,9 +110,9 @@ model.compile(loss=loss, optimizer='adam', metrics=['accuracy'])
 
 earStop = EarlyStopping(monitor='val_loss', min_delta=1e-5, patience=1)
 
-cv = 3
-randomSeed = 42
-batch_size = 64
+cv = 10
+randomSeed = 233
+batch_size = 32
 epoch = 2
 testBatchSize = 1024
 aucHistory = []
