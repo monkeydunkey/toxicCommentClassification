@@ -22,9 +22,16 @@ def preprocess(row):
         s = re.sub(r'([\'\"\.\(\)\!\?\-\\\/\,])', r' \1 ', s)
         # Remove some special characters
         s = re.sub(r'([\;\:\|\n])', ' ', s)
+        #removing weekday mentions
+        s = re.sub(r'\b((mon|tues|wed(nes)?|thur(s)?|fri|sat(ur)?|sun)(day)?)\b', ' ', s)
+        #removing month mentions
+        s = re.sub(r'\b(january|february|march|april|may|june|july|august|september|october|november|december)\b', ' ', s)
+        s = re.sub(r'\b(jan|feb|mar|apr|may|jun|jul|aug|sept|sep|oct|nov|dec)\b', ' ', s)
         # Replace numbers and symbols with language
         s = s.replace('&', ' and ')
         s = s.replace('@', ' at ')
+        s = s.replace('%', ' percentage ')
+        s = s.replace('$', ' dollar ')
         s = s.replace('0', ' zero ')
         s = s.replace('1', ' one ')
         s = s.replace('2', ' two ')
@@ -46,4 +53,4 @@ def preprocess(row):
 combinedDf = train_df.append(test_df)
 combinedDf = combinedDf.apply(preprocess, axis=1)
 
-combinedDf.to_csv('../datasets/combinedProcessedDataSet.csv', index=False)
+combinedDf.to_csv('../datasets/combinedProcessedDataSet_test.csv', index=False)

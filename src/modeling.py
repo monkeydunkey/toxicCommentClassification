@@ -35,6 +35,21 @@ class nbsvm():
         return m.predict_proba(data.multiply(r))
 
 
+def preprocess(text):
+    text = re.sub('((www\.[^\s]+)|(https://[^\s]+))','',text)
+    text = re.sub('((pic\.[^\s]+)|(https://[^\s]+))','',text)
+    text = re.sub("(http\S+)|(https\S+)", '', text)
+    text = re.sub(r'([\'\"\.\(\)\!\?\-\\\/\,])', r' ', text)
+    text = re.sub(r'([\;\:\|#*_=;.,\-\n\r\t])', ' ', text)
+    #removing dates
+    text = re.sub(r'\d{1,4}[- /]\d{1,2}[- /]\d{1,4}', ' ', text)
+    #removing weekday mentions
+    text = re.sub(r'\b((mon|tues|wed(nes)?|thur(s)?|fri|sat(ur)?|sun)(day)?)\b', ' ', text)
+    #removing time mentions
+    text = re.sub(r'\d{1,2}(:\d{2})?(\s?(am|pm)?\s?(est|pst|cst|et|pt)?)?', ' ', text)
+    text = re.sub(r'\d{4}\s?(est|pst|cst|et|pt)', ' ', text)
+    return text
+
 combinedDf = pd.read_csv('combinedProcessedDataSet.csv')
 train_df = pd.read_csv('train.csv')
 test_df = pd.read_csv('test.csv')
@@ -51,7 +66,7 @@ del combinedDf
 del train_df
 del test_df
 
-vec = TfidfVectorizer(ngram_range=(1,2), min_df=3, max_df=0.9, stop_words='english',
+vec = TfidfVectorizer(ngram_range=(1,6), min_df=3, max_df=0.9, stop_words='english',
                       strip_accents='unicode', use_idf=1,
                       smooth_idf=1, sublinear_tf=1)
 trn_term_doc = vec.fit_transform(trainData['ProcessedText'])

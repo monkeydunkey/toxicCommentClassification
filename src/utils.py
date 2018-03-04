@@ -3,7 +3,10 @@ import os
 import pandas as pd
 import numpy as np
 from datetime import datetime
-
+from google.cloud import storage
+from werkzeug import secure_filename
+from werkzeug.exceptions import BadRequest
+import six
 embedding_dir = {
     'glove': '../glove.6B',
     'fasttext': '../fasttext'
@@ -11,10 +14,8 @@ embedding_dir = {
 
 class tokenizerTfIdf(object):
     def __init__(self, ngram_range, max_features = None):
-        self.vec = TfidfVectorizer(ngram_range=ngram_range, min_df=3, max_df=0.9,
-                                   stop_words='english', strip_accents='unicode',
-                                   use_idf=1, smooth_idf=1, sublinear_tf=1,
-                                   max_features=max_features)
+        self.vec = TfidfVectorizer(ngram_range=ngram_range, min_df=4,
+                                   use_idf=1, max_features=max_features)
 
 
     def fit_on_texts(self, textList):
@@ -23,23 +24,97 @@ class tokenizerTfIdf(object):
 
     def texts_to_sequences(self, seqList):
         tokenized_text_list = []
+        tfidfScores_list = []
         list_tfIdfScores = self.vec.transform(seqList)
         for i, li in enumerate(seqList):
             tokens = map(lambda x: self.word_index[x], filter(lambda y: self.word_index.get(y, None) is not None, li.split(' ')))
-            tokens_sorted = sorted(tokens, key = lambda x: -list_tfIdfScores[i, x])
-            tokenized_text_list.append(tokens_sorted)
-        return tokenized_text_list
+            tfidfScores = map(lambda x: list_tfIdfScores[i, x], tokens)
+            tokenized_text_list.append(tokens)
+            tfidfScores_list.append(tfidfScores)
+        return tokenized_text_list, tfidfScores_list
 
+    def pad_sequences(self, list_tokenized_train, tfidfScores, maxlen):
+        paddedSeq = []
+        for i, seq in enumerate(list_tokenized_train):
+            seqLen = len(seq)
+            padSeq = np.array(seq)[np.argsort(tfidfScores[i])[-min(maxlen, seqLen):]]
+            padSeq = np.pad(padSeq, (max(0, maxlen - seqLen),0), 'constant', constant_values=0)
+            paddedSeq.append(padSeq)
+        return np.array(paddedSeq)
+
+
+def _get_storage_client(PROJECT_ID):
+    return storage.Client(project=PROJECT_ID)
+
+
+def _check_extension(filename, allowed_extensions):
+    if ('.' not in filename or
+            filename.split('.').pop().lower() not in allowed_extensions):
+        raise BadRequest(
+            "{0} has an invalid name or extension".format(filename))
+
+
+def _safe_filename(filename):
+    """
+    Generates a safe filename that is unlikely to collide with existing objects
+    in Google Cloud Storage.
+    ``filename.ext`` is transformed into ``filename-YYYY-MM-DD-HHMMSS.ext``
+    """
+    filename = secure_filename(filename)
+    date = datetime.datetime.utcnow().strftime("%Y-%m-%d-%H%M%S")
+    basename, extension = filename.rsplit('.', 1)
+    return "{0}-{1}.{2}".format(basename, date, extension)
+
+def upload_folder(config):
+    folder = config['runDir']
+    for f in os.listdir(folder):
+        if '.DS_Store' not in f:
+            print 'Uploading Folder:', folder, 'file:',  f
+            filePath = os.path.join(folder, f)
+            print 'uploaded file can be found at', upload_file(filePath, config)
+
+# [START upload_file]
+def upload_file(filename, config):
+    """
+    Uploads a file to a given Cloud Storage bucket and returns the public url
+    to the new object.
+    """
+    _check_extension(filename, config['ALLOWED_EXTENSIONS'])
+    #filename = _safe_filename(filename)
+
+    client = _get_storage_client(config['PROJECT_ID'])
+    bucket = client.bucket(config['CLOUD_STORAGE_BUCKET'])
+    blob = bucket.blob(filename)
+
+    blob.upload_from_filename(filename)
+    url = blob.public_url
+
+    if isinstance(url, six.binary_type):
+        url = url.decode('utf-8')
+    return url
+
+def writeToResults(config, text):
+    text = str(text)
+    filepath = os.path.join(config['runDir'], config['ResultFileName'])
+    with open(filepath, 'a') as f:
+        f.write(text + '\n')
+
+def saveToRunDir(config, df, filename='runResult.csv'):
+    filepath = os.path.join(config['runDir'], filename)
+    df.to_csv(filepath, index=False)
 
 def loadDatafile(fileName):
     DATA_DIR = '../datasets'
     return pd.read_csv(os.path.join(DATA_DIR, fileName))
 
-def setupModelRun(modelName):
-    timeStr = str(datetime.now().date()).replace('-', '_') + ' ' + str(datetime.now().time()).replace(':', '_').replace('.', '_')
+def setupModelRun(config):
+    modelName = config['ModelName']
+    timeStr = str(datetime.now().date()).replace('-', '_') + '__' + str(datetime.now().time()).replace(':', '_').replace('.', '_')
     dirName = modelName + '_' + timeStr
     if not os.path.exists(dirName):
         os.makedirs(dirName)
+    with open(os.path.join(dirName, config['ResultFileName']), 'w') as f:
+        f.write('Experiment:' + '\n' +config['Experiment'] + '\n\n')
     return dirName
 
 def loadDataSets():
