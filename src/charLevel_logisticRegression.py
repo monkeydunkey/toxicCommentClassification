@@ -66,26 +66,28 @@ word_vectorizer = TfidfVectorizer(
 all1 = pd.concat([train[COMMENT], test[COMMENT]])
 print 'Fitting word vectorizer'
 word_vectorizer.fit(all1)
+print 'word vectorizer fit'
 xtrain1 = word_vectorizer.transform(train[COMMENT])
 xtest1 = word_vectorizer.transform(test[COMMENT])
-
+print 'word feature set generated', xtrain1.shape
 char_vectorizer = TfidfVectorizer(
     sublinear_tf=True,
     strip_accents='unicode',
     analyzer='char',
-    min_df = 3,
-    ngram_range=(1, 6))
+    min_df = 6,
+    ngram_range=(1, 6),
+    max_features=250000)
 #     ,
 #     max_features=250000)
 
 all1 = pd.concat([train[COMMENT], test[COMMENT]])
 print 'Fitting char vectorizer'
 char_vectorizer.fit(all1)
-
+print 'Vectorizer fit'
 xtrain2 = char_vectorizer.transform(train[COMMENT])
 xtest2 = char_vectorizer.transform(test[COMMENT])
 
-print 'Vectorizer fit'
+print 'char feature set generated', xtrain2.shape
 nfolds = 3
 seed = 29
 cval = 4
