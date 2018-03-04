@@ -23,15 +23,18 @@ class tokenizerTfIdf(object):
         self.word_index = self.vec.vocabulary_
 
     def texts_to_sequences(self, seqList):
-        tokenized_text_list = []
-        tfidfScores_list = []
         list_tfIdfScores = self.vec.transform(seqList)
+        tokens = map(lambda x: tfidfmat[x,:].nonzero()[1], range(len(list_sentences_train)))
+        print 'tokens generated'
+        tfidfScores = map(lambda x: np.array(tfidfmat[x[0], x[1]].todense())[0], enumerate(tokens))
+        '''
         for i, li in enumerate(seqList):
             tokens = map(lambda x: self.word_index[x], filter(lambda y: self.word_index.get(y, None) is not None, li.split(' ')))
             tfidfScores = map(lambda x: list_tfIdfScores[i, x], tokens)
             tokenized_text_list.append(tokens)
             tfidfScores_list.append(tfidfScores)
-        return tokenized_text_list, tfidfScores_list
+        '''
+        return tokens, tfidfScores
 
     def pad_sequences(self, list_tokenized_train, tfidfScores, maxlen):
         paddedSeq = []
