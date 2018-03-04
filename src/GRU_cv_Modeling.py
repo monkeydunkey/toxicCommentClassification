@@ -166,4 +166,4 @@ except Exception as e:
 finally:
     # Performing final clean up and push to cloud storage
     print ('uploading run directory to google cloud storage')
-    #upload_folder(config)
+    upload_folder(config)
