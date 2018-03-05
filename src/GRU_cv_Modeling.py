@@ -7,11 +7,10 @@ from keras.layers import Bidirectional, GlobalMaxPool1D, GlobalAveragePooling1D,
 from keras.models import Model
 from keras.layers.merge import concatenate
 from keras import initializers, regularizers, constraints, optimizers, layers, callbacks
-
 import logging
 from sklearn.metrics import roc_auc_score
 from keras.callbacks import Callback, EarlyStopping
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 import os
 from utils import tokenizerTfIdf, loadDataSets, loadEmbedding, setupModelRun, writeToResults, saveToRunDir, upload_folder
 
@@ -130,11 +129,16 @@ try:
     aucHistory = []
 
     predfull = np.zeros((test.shape[0], len(list_classes)))
-
-    for cv_ in xrange(cv):
+    skf = StratifiedKFold(n_folds = cv, random_state = randomSeed)
+    cat_y = y.stack()
+    cat_y = pd.Series(pd.Categorical(cat_y[cat_y!=0].index.get_level_values(1)))
+    cv_ = 0
+    for train_index, test_index in skf.split(X_t, cat_y):
         print 'Cross Validation Round', cv_
         writeToResults(config, 'Cross Validation Round: ' + str(cv_))
-        [X_train, X_val, y_train, y_val] = train_test_split(X_t, y, train_size=0.95, random_state = randomSeed)
+        X_train, X_val = X_t[train_index], X_t[test_index]
+        y_train, y_val = y[train_index], y[test_index]
+        #[X_train, X_val, y_train, y_val] = train_test_split(X_t, y, train_size=0.95, random_state = randomSeed)
 
         ra_val = RocAucEvaluation(config, list_classes, [X_te], validation_data=(X_val, y_val), interval=1)
         print "Starting model training"
@@ -143,6 +147,7 @@ try:
         y_test = model.predict([X_te], batch_size=testBatchSize, verbose=1)
         predfull += y_test
         updateStr = 'Average AUC Score on the validation set for cv round: '+ str(cv_)+ ' is: '+ str(np.array(ra_val.auc_history).mean())
+        cv_ += 1
         print updateStr
         print '-'*53
         print '-'*53
